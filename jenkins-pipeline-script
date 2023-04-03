@@ -1,0 +1,50 @@
+pipeline {
+
+    // agent any
+    agent {label 'jenkins-slave'}
+
+    stages {
+        stage('Checkout') {
+            steps {
+                script {
+                    git 'https://github.com/devopskupryk/jenkins_study.git'
+                    sh '''
+                        ls -l k8s/
+                    '''
+                }
+            }
+        }
+        stage('Deploy') {
+            steps {
+                container('kubectl') {
+                    sh '''
+                        kubectl delete -f k8s/hello-app-deployment.yaml
+                        kubectl delete -f k8s/hello-app-service.yaml
+                        kubectl apply -f k8s/hello-app-deployment.yaml
+                        kubectl apply -f k8s/hello-app-service.yaml
+                    '''
+                }
+            }
+        }
+        stage('Test Deployment') {
+            steps {
+                container('kubectl') {
+                    sh '''
+                        kubectl rollout status deployment/hello-app
+                    '''
+                }
+            }
+        }
+        stage('Test Service') {
+            steps {
+                container('kubectl') {
+                    sh '''
+                        export address="$(kubectl get svc hello-app -o jsonpath={.spec.clusterIP})"
+                        export port="$(kubectl get svc hello-app -o jsonpath={.spec.ports[0].port})"
+                        curl --fail --silent --show-error http://$address:$port
+                    '''
+                }
+            }
+        }
+    }
+}
